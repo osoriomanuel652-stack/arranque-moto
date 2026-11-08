@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Moto ESP32</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #121212;
+            color: #ffffff;
+            margin-top: 50px;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            margin: 15px;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        #btnConectar { background-color: #ff9800; color: white; }
+        #btnEncender { background-color: #4CAF50; color: white; }
+        #btnApagar { background-color: #f44336; color: white; }
+        #estado { margin-top: 20px; font-size: 16px; color: #aaa; }
+    </style>
+</head>
+<body>
+
+    <h1>Control de Ignición Moto</h1>
+    
+    <div>
+        <button id="btnConectar" onclick="conectarBLE()">Conectar Bluetooth</button>
+    </div>
+    
+    <div>
+        <button id="btnEncender" onclick="enviarComando('1')">Encender / Arrancar</button>
+        <button id="btnApagar" onclick="enviarComando('0')">Apagar</button>
+    </div>
+
+    <p id="estado">Estado: Desconectado</p>
+
+    <script>
+        // UUIDs idénticos a los configurados en el ESP32
+        const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+        const CHARACTERISTIC_UUID_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+
+        let bluetoothServer = null;
+        let rxCharacteristic = null;
+
+        async function conectarBLE() {
+            try {
+                document.getElementById("estado").innerText = "Estado: Buscando dispositivo...";
+                
+                // Busca el dispositivo ESP32 por su nombre
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: "Moto_ESP32_Key" }],
+                    optionalServices: [SERVICE_UUID]
+                });
+
+                document.getElementById("estado").innerText = "Estado: Conectando al servidor GATT...";
+                bluetoothServer = await device.gatt.connect();
+
+                const service = await bluetoothServer.getPrimaryService(SERVICE_UUID);
+                rxCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID_RX);
+
+                document.getElementById("estado").innerText = "Estado: ¡Conectado con éxito!";
+                document.getElementById("btnConectar").style.backgroundColor = "#2e7d32";
+                document.getElementById("btnConectar").innerText = "Conectado";
+
+            } catch (error) {
+                console.error("Error de conexión:", error);
+                document.getElementById("estado").innerText = "Estado: Error al conectar (" + error + ")";
+            }
+        }
+
+        async function enviarComando(valor) {
+            if (!rxCharacteristic) {
+                alert("Primero debes conectar el Bluetooth con el botón naranja.");
+                return;
+            }
+
+            try {
+                const encoder = new TextEncoder();
+                // Envía el comando en formato de bytes hacia el ESP32
+                await rxCharacteristic.writeValueWithoutResponse(encoder.encode(valor));
+                console.log("Comando enviado con éxito: " + valor);
+            } catch (error) {
+                console.error("Error al enviar el comando:", error);
+                alert("No se pudo enviar el comando. Revisa la consola.");
+            }
+        }
+    </script>
+
+</body>
+</html>
